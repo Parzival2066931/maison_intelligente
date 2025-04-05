@@ -34,6 +34,7 @@ class Led {
         pin[i] = FIRST_PIN + i;
       }
     }
+    
 
     void SetRgb(unsigned int r, unsigned int g, unsigned int b) {
       this->r = r;
@@ -47,5 +48,11 @@ class Led {
 
 
     int GetPin(int i) {return pin[i];}
+
+    void offline() {
+      r = 0;
+      g = 0;
+      b = 0;
+    }
 
 };
