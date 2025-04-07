@@ -35,11 +35,19 @@ class Led {
       }
     }
     
-
+    void setup() {
+      for(int i = 0; i < NB_PIN; i++) {
+        pinMode(pin[i], OUTPUT);
+      }
+    }
     void SetRgb(unsigned int r, unsigned int g, unsigned int b) {
       this->r = r;
       this->g = g;
       this->b = b;
+
+      analogWrite(pin[0], this->r);
+      analogWrite(pin[1], this->g);
+      analogWrite(pin[2], this->b);
     }
 
     unsigned int GetRed() {return r;}

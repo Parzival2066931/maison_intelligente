@@ -3,7 +3,6 @@
 #include <HCSR04.h>
 
 #include "led_rgb.h"
-#define NB_PIN 3
 
 #define BUZZER_PIN 3
 
@@ -43,6 +42,7 @@ float minStep;
 float maxStep;
 
 
+
 enum Distance {TROP_TROP_PRES, TROP_PRES, NORMAL, TROP_LOIN};
 enum Couleur {ROUGE, BLEU, BLANC};
 
@@ -54,9 +54,7 @@ void setup() {
   Serial.begin(115200);
   lcd.begin();
 
-  for(int i = 0; i < NB_PIN; i++) {
-    pinMode(led.GetPin(i), OUTPUT);
-  }
+  led.setup();
   pinMode(BUZZER_PIN, OUTPUT);
 
   myStepper.setMaxSpeed(maxSpeed);
@@ -101,6 +99,7 @@ void stateManager() {
     ledOffTask(currentTime);
     buzzerOffTask(currentTime);
   }
+  
 
   switch(distance) {
 
@@ -166,28 +165,32 @@ void lcdTask(unsigned long ct) {
   }
 }
 Led colorManager(Couleur couleur[], int i) {
+  const int ledOn = 255;
+  const int ledOff = 0;
+  const int ledWhite = 127;
+
 
   if(couleur[i] == ROUGE) {
-    led.SetRgb(255, 0, 0);
+    led.SetRgb(ledOn, ledOff, ledOff);
   }
   else if(couleur[i] == BLEU) {
-    led.SetRgb(0, 255, 0);
+    led.SetRgb(ledOff, ledOff, ledOn);
   }
   else if(couleur[i] == BLANC) {
-    led.SetRgb(127, 127, 127);
+    led.SetRgb(ledWhite, ledWhite, ledWhite);
   }
   
 }
 void ledTask(unsigned long ct, bool stop, unsigned long &lastMillis) {
   static unsigned long lastTime = 0;
-  int rate = 500;
+  int rate = 250;
   static int compteur = 0;
   
 
   
-  
+  colorManager(couleur, compteur);
   if(ct - lastTime >= rate) {
-    colorManager(couleur, compteur);
+    
     compteur++;
     if(compteur == 3) {
       compteur = 0;
@@ -195,34 +198,24 @@ void ledTask(unsigned long ct, bool stop, unsigned long &lastMillis) {
     lastTime = ct;
   }
   
-  
-  analogWrite(led.GetPin(0), led.GetRed());
-  analogWrite(led.GetPin(1), led.GetGreen());
-  analogWrite(led.GetPin(2), led.GetBlue());
-  
 }
 void ledOffTask(unsigned long ct) {
   static unsigned long lastTime = 0;
   int rate = 3000;
-  int ledOff = 0;
+  const int ledOff = 0;
 
-  Serial.println("J'ÉTTEINT LA LED");
-  analogWrite(led.GetPin(0), ledOff);
-  analogWrite(led.GetPin(1), ledOff);
-  analogWrite(led.GetPin(2), ledOff);
-}
-void buzzerTask(bool transition, unsigned long ct) {
-  static unsigned long lastTime = 0;
-  static bool buzzerState = false;
-  int rate = 500;
-
-  
-  if(ct - lastTime >= rate) {
-    buzzerState = !buzzerState;
+  if((ct - lastTime >= rate)) {
     lastTime = ct;
+    
+    led.SetRgb(ledOff, ledOff, ledOff);
   }
 
-  digitalWrite(BUZZER_PIN, buzzerState);
+  
+}
+void buzzerTask(bool transition, unsigned long ct) {
+  int frequency = 500;
+
+  tone(BUZZER_PIN, frequency);
   
   
 }
@@ -230,9 +223,9 @@ void buzzerOffTask(unsigned long ct) {
   static unsigned long lastTime = 0;
   int rate = 3000;
 
-  if(ct - lastTime >= rate) {
+  if((ct - lastTime >= rate)) {
     lastTime = ct;
-    digitalWrite(BUZZER_PIN, LOW);
+    noTone(BUZZER_PIN);
 
   }
 }
