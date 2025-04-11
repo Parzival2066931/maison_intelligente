@@ -41,13 +41,19 @@ int maxAngle = 170;
 float minStep;
 float maxStep;
 
+unsigned long lastTimeObjectDetected = 0;
 
+enum DistanceState { TROP_PRES,
+                NORMAL,
+                TROP_LOIN };
+enum Alert {ON, OFF};
+enum Couleur { ROUGE,
+               BLEU,
+               BLANC };
 
-enum Distance {TROP_TROP_PRES, TROP_PRES, NORMAL, TROP_LOIN};
-enum Couleur {ROUGE, BLEU, BLANC};
-
-Distance distance = NORMAL;
-Couleur couleur[3] = {ROUGE, BLEU, BLANC};
+DistanceState distanceState = NORMAL;
+Couleur couleur[3] = { ROUGE, BLEU, BLANC };
+Alert alert = OFF;
 
 void setup() {
   // put your setup code here, to run once:
@@ -61,8 +67,8 @@ void setup() {
   myStepper.setSpeed(speed);
   myStepper.setAcceleration(acceleration);
 
-  minStep = minAngle/360.0 * stepPerTurn;
-  maxStep = maxAngle/360.0 * stepPerTurn;
+  minStep = minAngle / 360.0 * stepPerTurn;
+  maxStep = maxAngle / 360.0 * stepPerTurn;
 
   lcdSetup();
 }
@@ -70,7 +76,7 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   currentTime = millis();
-  
+
 
 
   lcdTask(currentTime);
@@ -78,11 +84,11 @@ void loop() {
   getDistTask(currentTime);
 
   stateManager();
+  alertStateManager();
 
-  // serialTask(currentTime);
+  serialTask(currentTime);
 
   myStepper.run();
-  
 }
 void lcdSetup() {
   lcd.backlight();
@@ -94,18 +100,8 @@ void lcdSetup() {
   lcd.clear();
 }
 void stateManager() {
-  
-  if(distance != TROP_TROP_PRES) {
-    ledOffTask(currentTime);
-    buzzerOffTask(currentTime);
-  }
-  
 
-  switch(distance) {
-
-    case TROP_TROP_PRES:
-      tooTooCloseState(currentTime);
-      break;
+  switch (distanceState) {
 
     case TROP_PRES:
       tooCloseState(currentTime);
@@ -118,42 +114,45 @@ void stateManager() {
     case TROP_LOIN:
       tooFarState(currentTime);
       break;
-
   }
-  if(dist < alertDist) {
-    distance = TROP_TROP_PRES;
 
-  }
-  else if(dist < minDist) {
-    distance = TROP_PRES;
+  if (dist < minDist) {
+    distanceState = TROP_PRES;
 
-  }
-  else if(dist > maxDist) {
-    distance = TROP_LOIN;
+  } else if (dist > maxDist) {
+    distanceState = TROP_LOIN;
 
+  } else {
+    distanceState = NORMAL;
   }
-  else {
-    distance = NORMAL;
-
-  }
-  
 }
 void getDistTask(unsigned long ct) {
   static unsigned long lastTime = 0;
   int rate = 100;
+  static int lastDist = 0;
 
-  if(ct - lastTime >= rate) {
+  if (ct - lastTime >= rate) {
 
     dist = hc.dist();
-
     lastTime = ct;
+
+    if(dist > 0) {
+      lastDist = dist;
+    } 
+    else {
+      dist = lastDist;
+
+    }
+    
+    
+    
   }
 }
 void lcdTask(unsigned long ct) {
   static unsigned long lastTime = 0;
   int rate = 100;
 
-  if(ct - lastTime >= rate) {
+  if (ct - lastTime >= rate) {
     lcd.setCursor(0, 0);
     lcd.print("Dist : ");
     lcd.print(dist);
@@ -164,122 +163,109 @@ void lcdTask(unsigned long ct) {
     lastTime = ct;
   }
 }
-Led colorManager(Couleur couleur[], int i) {
+void alertStateManager() {
+
+  switch (alert) {
+    case ON:
+      alertOnState(currentTime);
+      break;
+    case OFF:
+      alertOffState();
+      break;
+  }
+}
+void colorManager(Couleur couleur[], int compteur) {
   const int ledOn = 255;
   const int ledOff = 0;
   const int ledWhite = 127;
 
 
-  if(couleur[i] == ROUGE) {
+  if (couleur[compteur] == ROUGE) {
     led.SetRgb(ledOn, ledOff, ledOff);
-  }
-  else if(couleur[i] == BLEU) {
+  } else if (couleur[compteur] == BLEU) {
     led.SetRgb(ledOff, ledOff, ledOn);
-  }
-  else if(couleur[i] == BLANC) {
+  } else if (couleur[compteur] == BLANC) {
     led.SetRgb(ledWhite, ledWhite, ledWhite);
   }
-  
 }
-void ledTask(unsigned long ct, bool stop, unsigned long &lastMillis) {
+void ledTask(unsigned long ct) {
   static unsigned long lastTime = 0;
-  int rate = 250;
+  int rate = 200;
   static int compteur = 0;
-  
-
-  
   colorManager(couleur, compteur);
-  if(ct - lastTime >= rate) {
-    
+
+  if (ct - lastTime >= rate) {
+
     compteur++;
-    if(compteur == 3) {
+    if (compteur == 3) {
       compteur = 0;
     }
     lastTime = ct;
   }
-  
 }
-void ledOffTask(unsigned long ct) {
-  static unsigned long lastTime = 0;
-  int rate = 3000;
+void ledOffTask() {
   const int ledOff = 0;
 
-  if((ct - lastTime >= rate)) {
-    lastTime = ct;
-    
-    led.SetRgb(ledOff, ledOff, ledOff);
-  }
-
-  
+  led.SetRgb(ledOff, ledOff, ledOff);
 }
-void buzzerTask(bool transition, unsigned long ct) {
+void buzzerTask() {
   int frequency = 500;
 
   tone(BUZZER_PIN, frequency);
-  
-  
 }
-void buzzerOffTask(unsigned long ct) {
-  static unsigned long lastTime = 0;
-  int rate = 3000;
+void buzzerOffTask() {
 
-  if((ct - lastTime >= rate)) {
-    lastTime = ct;
-    noTone(BUZZER_PIN);
-
-  }
+  noTone(BUZZER_PIN);
 }
-void tooTooCloseState(unsigned long ct) {
-  static unsigned long lastMillis = 0;
+void alertOnState(unsigned long ct) {
+
   int rate = 3000;
+  bool transition = dist > alertDist;
 
-  static bool transition = dist > 15;
-  static bool stop = false; 
-
-  if(transition) {
-    // if(ct - lastMillis >= rate) {
-    stop = true;
-    // }
-    
-    // buzzerOffTask();
-    // ledOffTask();
+  if (transition) {
+    if ((ct - lastTimeObjectDetected >= rate)) {
+      
+      alert = OFF;
+    }
   }
   else {
-    stop = false;
+    lcd.setCursor(6, 1);
+    lcd.print(" ALERTE   ");
+    lastTimeObjectDetected = ct;
   }
-  
-  
-  ledTask(ct, stop, lastMillis);
-  buzzerTask(transition, ct);
 
-  lcd.setCursor(6, 1);
-  lcd.print(" ALERTE   ");
-  
-  
+  ledTask(ct);
+  buzzerTask();
 
+  
+}
+void alertOffState() {
+  bool transition = dist < alertDist;
+
+  if(transition) {
+    alert = ON;
+  }
+  ledOffTask();
+  buzzerOffTask();
 }
 void tooCloseState(unsigned long ct) {
   static unsigned long lastTime = 0;
   int rate = 100;
   int minPosition = map(minDist, minDist, maxDist, minStep, maxStep);
 
-  if(ct - lastTime >= rate) {
+  if (ct - lastTime >= rate) {
 
     lcd.setCursor(6, 1);
     lcd.print(" trop pres");
 
-    
     myStepper.moveTo(minPosition);
 
-    if(myStepper.distanceToGo() == 0) {
+    if (myStepper.distanceToGo() == 0) {
       myStepper.disableOutputs();
-
     }
 
     lastTime = ct;
   }
-  
-  
 }
 void tooFarState(unsigned long ct) {
   static unsigned long lastTime = 0;
@@ -287,16 +273,15 @@ void tooFarState(unsigned long ct) {
   int maxPosition = map(maxDist, minDist, maxDist, minStep, maxStep);
 
 
-  if(ct - lastTime >= rate) {
+  if (ct - lastTime >= rate) {
 
     lcd.setCursor(6, 1);
     lcd.print(" trop loin");
 
     myStepper.moveTo(maxPosition);
-    
-    if(myStepper.distanceToGo() == 0) {
-      myStepper.disableOutputs();
 
+    if (myStepper.distanceToGo() == 0) {
+      myStepper.disableOutputs();
     }
 
     lastTime = ct;
@@ -308,9 +293,9 @@ void normalState(unsigned long ct) {
 
   pointeurTask(ct);
 
-  if(ct - lastTime >= rate) {
+  if (ct - lastTime >= rate) {
 
-    lcd.print(currentPosition); //position en degrés
+    lcd.print(currentPosition);  //position en degrés
     lcd.print(" deg    ");
 
     lastTime = ct;
@@ -320,30 +305,29 @@ void normalState(unsigned long ct) {
 void pointeurTask(unsigned long ct) {
   static unsigned long lastTime = 0;
   int rate = 100;
-  
-  
+
+
   static int stepsToMove = 0;
 
-  if(ct - lastTime >= rate) {
+  if (ct - lastTime >= rate) {
     currentPosition = map(dist, minDist, maxDist, minAngle, maxAngle);
     stepsToMove = map(dist, minDist, maxDist, minStep, maxStep);
 
     lastTime = ct;
   }
 
-  if(myStepper.distanceToGo() == 0) {
+  if (myStepper.distanceToGo() == 0) {
     myStepper.disableOutputs();
   }
 
   myStepper.moveTo(stepsToMove);
-  
 }
 void serialTask(unsigned long ct) {
 
   static unsigned long lastTime = 0;
   int rate = 100;
 
-  if(ct - lastTime >= rate) {
+  if (ct - lastTime >= rate) {
 
     Serial.print("etd:2066931,dist:");
     Serial.print(dist);
@@ -352,9 +336,4 @@ void serialTask(unsigned long ct) {
 
     lastTime = ct;
   }
-  
-
-  
-
 }
-
